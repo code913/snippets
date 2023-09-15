@@ -1,0 +1,46 @@
+/**
+ * Most basic css reset
+ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+}
+
+html {
+    font: {
+        // https://systemfontstack.com
+        family: apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+        size: clamp(16px, 2.5vmin, 32px);
+        weight: 400;
+        display: swap;
+    }
+}
+
+// https://grtcalculator.com
+body {
+    $line-height: 1.6875;
+    line-height: $line-height;
+    min-height: 100vh;
+
+    p:not(:last-child) {
+        margin-block-end: #{$line-height * 1em};
+    }
+}
+
+button {
+    display: inline-block;
+    border: none;
+    color: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    text-align: center;
+    vertical-align: center;
+    box-shadow: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
