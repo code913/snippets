@@ -1,6 +1,5 @@
 /**
  * The Interaction class takes a raw webhook interaction from discord and adds helpers to it
- * @todo Add support for responding with attachments
  * @see https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-object
  */
 
@@ -69,12 +68,38 @@ export class Interaction {
 		}
 	}
 
-	createResponse(data: any, { type }: { type: InteractionResponseType } = {
+	async createResponse(data: {
+		[key: string]: any,
+		attachments?: {
+			name: string,
+			bits: string | Buffer | ArrayBufferLike,
+			type?: string
+		}[]
+	}, { type }: { type: InteractionResponseType } = {
 		type: this.message ? InteractionResponseType.UPDATE_MESSAGE : InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE
 	}) {
-		return new JsonResponse({
+		const { attachments } = data;
+		const body = {
 			type,
-			data
-		});
+			data // intended to be a reference
+		};
+
+		if (attachments) {
+			// @ts-ignore
+			data.attachments = data.attachments?.map((_, i) => ({ id: i }));
+
+			const formData = new FormData();
+
+			formData.append("payload_json", JSON.stringify(body));
+
+			for (let [i, { name, bits, type }] of Object.entries(attachments))
+				formData.append(`files[${i}]`, new File([bits], name, {
+					type: type ?? "application/octet-stream"
+				}));
+
+			return new Response(formData);
+		}
+
+		return new JsonResponse(body);
 	}
 };
