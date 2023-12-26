@@ -1,7 +1,9 @@
 /**
   * Redirect requests through cloudflare workers and try to rewrite response urls to also go through it
   * No guarantee as to whether it would work or get blocked
-  * @see https://proxy.code913.workers.dev/https://code913.devpage.me/?&ignore[]=github.com&ignore[]=svelte.dev&ignore[]=codepen.io&ignore[]=discord.gg
+  * @param {string[]} [proxy_ignore[]] - Array of strings to match against urls that shouldn't be proxied; they will be served as redirects instead by ?onlyRedirect
+  * @param {boolean} [onlyRedirect] - Boolean to only redirect the request instead of proxying
+  * @see https://proxy.code913.workers.dev/https://code913.devpage.me/?proxy_ignore[]=github.com&proxy_ignore[]=svelte.dev&proxy_ignore[]=codepen.io&proxy_ignore[]=discord.gg
   */
 const workerUrl = "https://proxy.code913.workers.dev/";
 
@@ -11,8 +13,12 @@ function rewriteUrls(targetOrigin, text, ignore) {
   // Inject <base> tag into the <head>
   return text
     .replace(/(<head[^>]*?>)/i, `$1<base href="${modifiedUrl}/">`)
-    .replace(/(href|src)=(['"]?)([^"'\s>]+)(['" >])/gi, (match, attribute, quote1, url, quote2) => {
-      if (!ignore.some(i => url.includes(i))) {
+    .replace(/(href|src(?:set|doc)?|(?:form)?action|cite|formtarget|longdesc|manifest|poster|profile|background|data|dynsrc|ping|usemap)=(['"]?)([^"'\s>]+)(['" >])/gi, (match, attribute, quote1, url, quote2) => {
+      if (ignore.some(i => url.includes(i))) {
+        url = new URL(workerUrl + encodeURI(url));
+        url.searchParams.append("proxy_onlyRedirect", true);
+        url = url.href;
+      } else {
         if (url.startsWith("//")) {
           // Protocol-relative URL: Join with worker's origin
           console.trace({ url });
@@ -35,8 +41,21 @@ export default {
    */
   async fetch(request) {
     const url = new URL(request.url);
-    const ignore = url.searchParams.getAll("ignore[]");
+    const ignore = url.searchParams.getAll("proxy_ignore[]");
+    const onlyRedirect = url.searchParams.get("proxy_onlyRedirect");
+    console.dir({ onlyRedirect });
     const targetOrigin = new URL(url.pathname !== "/" ? url.pathname.slice(1) : url.searchParams.get("url")).href; // Handle both pathname and ?url cases
+
+    const completeTarget = new URL(targetOrigin);
+    completeTarget.search = url.search;
+    completeTarget.searchParams.delete("proxy_ignore[]");
+    completeTarget.searchParams.delete("proxy_onlyRedirect");
+    if (onlyRedirect !== null) return new Response(null, {
+      status: 307,
+      headers: {
+        Location: completeTarget.href
+      }
+    });
 
     const payload = {
       method: request.method,
@@ -46,8 +65,6 @@ export default {
       payload.body = await request.arrayBuffer();
     }
 
-    const completeTarget = new URL(targetOrigin);
-    completeTarget.search = url.search;
     const response = await fetch(completeTarget, payload);
 
     if (response.headers.get("Content-Type").startsWith("text/")) {
